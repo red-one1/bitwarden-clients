@@ -26,6 +26,7 @@ export class EditMenu implements IMenubarMenu {
       this.copyUsername,
       this.copyPassword,
       this.copyVerificationCodeTotp,
+      this.autoType,
     ];
   }
 
@@ -118,6 +119,18 @@ export class EditMenu implements IMenubarMenu {
       click: () => this.sendMessage("copyTotp"),
       accelerator: "CmdOrCtrl+T",
       enabled: !this._isLocked,
+    };
+  }
+
+  // Fork: KeePass-style auto-type of the selected item into the previous window.
+  private get autoType(): MenuItemConstructorOptions {
+    return {
+      label: this.localize("autoTypeSelectedItem"),
+      id: "autoType",
+      click: () => this.sendMessage("autoType"),
+      accelerator: "CmdOrCtrl+Shift+V",
+      enabled: !this._isLocked,
+      visible: process.platform === "win32",
     };
   }
 

@@ -1302,6 +1302,12 @@
   "copyVerificationCodeTotp": {
     "message": "Copy verification code (TOTP)"
   },
+  "autoTypeSelectedItem": {
+    "message": "Auto-type into previous window"
+  },
+  "autoTypeFailed": {
+    "message": "Auto-type failed"
+  },
   "copyPrivateKey": {
     "message": "Copy private key"
   },

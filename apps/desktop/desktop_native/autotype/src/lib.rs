@@ -1,6 +1,8 @@
 mod app_data;
 mod type_input;
 
+pub mod sequence; // Fork: auto-type of the selected item
+
 pub mod mvp; // MVP, delete with PM-41067
 
 use anyhow::Result;

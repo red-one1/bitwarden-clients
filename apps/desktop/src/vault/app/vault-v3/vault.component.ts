@@ -163,6 +163,14 @@ import {
 
 import { DesktopHeaderComponent } from "../../../app/layout/header/desktop-header.component";
 import { ImportDesktopComponent } from "../../../app/tools/import/import-desktop.component";
+import {
+  buildAutotypeSteps,
+  sequenceUsesTotp,
+} from "../../../autofill/selected-item-autotype/autotype-sequence";
+import {
+  autotypeSequenceFor,
+  autotypeValuesFor,
+} from "../../../autofill/selected-item-autotype/selected-item-autotype";
 import { AssignCollectionsDesktopComponent } from "../vault/assign-collections";
 
 import { AssignCollectionsDesktopDialogAdapter } from "./bulk-action-dialogs/assign-collections-desktop-dialog.adapter";
@@ -694,6 +702,13 @@ export class VaultComponent<C extends CipherViewLike> implements OnInit, OnDestr
                 if (value) {
                   this.copyValue(cipher, value.code, "verificationCodeTotp", "TOTP");
                 }
+              }
+              break;
+            }
+            case "autoType": {
+              const cipher = this.cipher();
+              if (cipher) {
+                await this.autoType(cipher);
               }
               break;
             }
@@ -1350,6 +1365,41 @@ export class VaultComponent<C extends CipherViewLike> implements OnInit, OnDestr
         this.messagingService.send("minimizeOnCopy");
       })().catch(() => {});
     });
+  }
+
+  /**
+   * Fork: KeePass-style "Perform Auto-Type" of the selected item. Types the item's `autotype`
+   * custom field sequence (default `{USERNAME}{TAB}{PASSWORD}{ENTER}`) into the window used
+   * before Bitwarden.
+   */
+  private async autoType(cipher: CipherView) {
+    try {
+      if (!(await this.passwordReprompt(cipher))) {
+        return;
+      }
+      const sequence = autotypeSequenceFor(cipher);
+      let totp: string | undefined;
+      if (
+        sequenceUsesTotp(sequence) &&
+        cipher.login?.totp &&
+        (cipher.organizationUseTotp || this.userHasPremium())
+      ) {
+        totp = (await firstValueFrom(this.totpService.getCode$(cipher.login.totp)))?.code;
+      }
+      const steps = buildAutotypeSteps(sequence, autotypeValuesFor(cipher, sequence, totp));
+
+      const error = await ipc.autofill.selectedItemAutotype.perform(steps);
+      if (error) {
+        throw new Error(error);
+      }
+      await this.eventCollectionService.collect(EventType.Cipher_ClientAutofilled, cipher.id);
+    } catch (e) {
+      this.toastService.showToast({
+        variant: "error",
+        title: this.i18nService.t("autoTypeFailed"),
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 
   private functionWithChangeDetection(func: () => void) {

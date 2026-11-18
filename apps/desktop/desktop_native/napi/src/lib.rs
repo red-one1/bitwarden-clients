@@ -11,6 +11,7 @@ mod registry;
 pub mod autofill;
 pub mod autostart;
 pub mod autotype_mvp; // MVP, delete with PM-41067
+pub mod autotype_sequence; // Fork: auto-type of the selected item
 pub mod biometrics;
 pub mod chromium_importer;
 pub mod clipboards;

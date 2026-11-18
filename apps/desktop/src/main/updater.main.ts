@@ -48,8 +48,10 @@ export class UpdaterMain {
     // we need to do to properly support this. Due to capacity, we decided to
     // temporarily disable AppImage auto updates. See PM-41518.
     const linuxCanUpdate = false;
+    // Fork: this self-built auto-type build must never update itself to the official release.
+    const isForkBuild = true;
     const windowsCanUpdate =
-      process.platform === "win32" && !isWindowsStore() && !isWindowsPortable();
+      process.platform === "win32" && !isWindowsStore() && !isWindowsPortable() && !isForkBuild;
     const macCanUpdate = process.platform === "darwin" && !isMacAppStore();
     this.canUpdate =
       !this.userDisabledUpdates() && (linuxCanUpdate || windowsCanUpdate || macCanUpdate);

@@ -1,0 +1,122 @@
+# Fork-only workflow: tests and builds the desktop app with KeePass-style auto-type of the selected
+# item (Edit > "Auto-type into previous window", Ctrl+Shift+V) as an UNSIGNED Windows x64 build.
+# Upstream workflows only run on main/rc/hotfix branches and tags, so a push to this branch runs
+# only this workflow.
+name: Fork - Desktop auto-type build (Windows)
+
+on:
+  push:
+    branches:
+      - keepass-autotype
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Tests and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
+          node-version-file: ".nvmrc"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Test the auto-type sequence parser
+        working-directory: apps/desktop
+        run: npx jest src/autofill/selected-item-autotype
+
+      - name: Lint the auto-type changes
+        run: |
+          npx eslint apps/desktop/src/autofill/selected-item-autotype \
+            apps/desktop/src/autofill/main/main-selected-item-autotype.service.ts \
+            apps/desktop/src/autofill/preload.ts apps/desktop/src/main/menu/menu.edit.ts \
+            apps/desktop/src/main/updater.main.ts apps/desktop/src/main.ts \
+            apps/desktop/src/vault/app/vault-v3/vault.component.ts
+          npx prettier --check apps/desktop/src .github/workflows/fork-build-desktop-autotype.yml
+
+      - name: Test and lint the native auto-type module
+        working-directory: apps/desktop/desktop_native
+        run: |
+          rustup show
+          cargo test -p autotype --lib sequence
+          cargo clippy -p autotype -p desktop_napi -- -D warnings
+
+  windows:
+    name: Build and pack (Windows x64, unsigned)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
+          node-version-file: ".nvmrc"
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: |
+            apps/desktop/desktop_native -> target
+          cache-targets: "true"
+
+      - name: Test the native auto-type module on Windows
+        working-directory: apps/desktop/desktop_native
+        run: |
+          rustup show
+          cargo test -p autotype --lib sequence
+          cargo clippy -p autotype -- -D warnings
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build native module
+        working-directory: apps/desktop/desktop_native
+        run: node build.js --target=x86_64-pc-windows-msvc --release
+
+      - name: Build app
+        working-directory: apps/desktop
+        run: npm run build:oss
+
+      - name: Pack installer and portable exe
+        working-directory: apps/desktop
+        run: >-
+          npx electron-builder --win nsis portable --x64 -p never
+          -c.nsis.oneClick=false -c.nsis.perMachine=false -c.nsis.include=installer.nsh
+          '-c.nsis.artifactName=${productName}-AutoType-Setup-${version}.${ext}'
+          '-c.portable.artifactName=${productName}-AutoType-Portable-${version}.${ext}'
+
+      - name: Upload build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bitwarden-desktop-autotype-windows-x64
+          path: apps/desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 30

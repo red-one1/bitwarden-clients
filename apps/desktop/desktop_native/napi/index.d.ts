@@ -274,6 +274,26 @@ export declare namespace autotype_mvp {
   export function typeInput(input: Array<number>, keyboardShortcut: Array<string>): void
 }
 
+export declare namespace autotype_sequence {
+  /** Switches to the window below Bitwarden (like KeePass) and types the steps into it. */
+  export function perform(steps: Array<AutotypeStep>): Promise<void>
+  /** One resolved step of an auto-type sequence, built by the renderer. */
+  export interface AutotypeStep {
+    /** One of `text`, `key`, `char`, `delay` or `keyDelay`. */
+    kind: string
+    /** The text for `text`, or the single character for `char`. */
+    text?: string
+    /** The Windows virtual key code for `key`. */
+    vk?: number
+    shift?: boolean
+    ctrl?: boolean
+    alt?: boolean
+    win?: boolean
+    /** Milliseconds for `delay` and `keyDelay`. */
+    ms?: number
+  }
+}
+
 export declare namespace biometrics {
   export class BiometricLockSystem {
 

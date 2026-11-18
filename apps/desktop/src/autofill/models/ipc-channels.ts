@@ -7,6 +7,11 @@ export const AUTOTYPE_MVP_IPC_CHANNELS = {
   EXECUTE: "autofill.executeAutotypeMvp",
 } as const;
 
+// Fork: auto-type of the item selected in the desktop app.
+export const SELECTED_ITEM_AUTOTYPE_IPC_CHANNELS = {
+  PERFORM: "autofill.performSelectedItemAutotype",
+} as const;
+
 export const SSH_AGENT_IPC_CHANNELS = {
   INIT: "sshagent.init",
   IS_LOADED: "sshagent.isloaded",

@@ -4,7 +4,12 @@ import { DesktopAutofillPreload } from "./desktop-autofill.preload";
 import { AutotypeConfig } from "./models/autotype-config";
 import { AutotypeMatchError } from "./models/autotype-errors";
 import { AutotypeVaultData } from "./models/autotype-vault-data";
-import { AUTOTYPE_MVP_IPC_CHANNELS, SSH_AGENT_IPC_CHANNELS } from "./models/ipc-channels";
+import {
+  AUTOTYPE_MVP_IPC_CHANNELS,
+  SELECTED_ITEM_AUTOTYPE_IPC_CHANNELS,
+  SSH_AGENT_IPC_CHANNELS,
+} from "./models/ipc-channels";
+import type { AutotypeStep } from "./selected-item-autotype/autotype-sequence";
 
 const sshAgent = {
   init: async () => {
@@ -67,10 +72,19 @@ const autotypeMvp = {
   },
 };
 
+// Fork: auto-type of the item selected in the desktop app.
+const selectedItemAutotype = {
+  /** Switches to the previous window and types the steps; resolves to an error message or null. */
+  perform: (steps: AutotypeStep[]): Promise<string | null> =>
+    ipcRenderer.invoke(SELECTED_ITEM_AUTOTYPE_IPC_CHANNELS.PERFORM, steps),
+};
+
 export default {
   desktopAutofill: DesktopAutofillPreload,
 
   sshAgent,
 
   autotypeMvp,
+
+  selectedItemAutotype,
 };

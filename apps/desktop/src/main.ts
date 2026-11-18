@@ -51,6 +51,7 @@ import { SSOLocalhostCallbackService } from "./auth/services/sso-localhost-callb
 import { DesktopAutofillMain } from "./autofill/main/main-desktop-autofill.service";
 import { MainDesktopAutotypeMvpService } from "./autofill/main/main-desktop-autotype-mvp.service";
 import { MainDesktopAutotypeService } from "./autofill/main/main-desktop-autotype.service";
+import { MainSelectedItemAutotypeService } from "./autofill/main/main-selected-item-autotype.service";
 import { MainSshAgentService } from "./autofill/main/main-ssh-agent.service";
 import { DesktopAutofillSettingsService } from "./autofill/services/desktop-autofill-settings.service";
 import { DesktopBiometricsService } from "./key-management/biometrics/desktop.biometrics.service";
@@ -117,6 +118,7 @@ export class Main {
   sdkLoadService: SdkLoadService;
   mainDesktopAutotypeMvpService: MainDesktopAutotypeMvpService;
   mainDesktopAutotypeService: MainDesktopAutotypeService;
+  mainSelectedItemAutotypeService: MainSelectedItemAutotypeService;
   ssoCookieMain: SsoCookieMain;
   ipcService: IpcService;
   /** Read-only: main must not write policy state, the renderer would not observe it. */
@@ -392,9 +394,12 @@ export class Main {
       this.windowMain,
     );
 
+    this.mainSelectedItemAutotypeService = new MainSelectedItemAutotypeService(this.logService);
+
     app.on("will-quit", () => {
       this.mainDesktopAutotypeMvpService.dispose();
       this.mainDesktopAutotypeService.dispose();
+      this.mainSelectedItemAutotypeService.dispose();
       this.storageService.dispose();
     });
   }

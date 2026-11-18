@@ -105,11 +105,12 @@ jobs:
         working-directory: apps/desktop
         run: npm run build:oss
 
+      # pwsh splits unquoted `-c.a.b=x` into `-c` and `.a.b=x`, so every -c argument is quoted.
       - name: Pack installer and portable exe
         working-directory: apps/desktop
         run: >-
           npx electron-builder --win nsis portable --x64 -p never
-          -c.nsis.oneClick=false -c.nsis.perMachine=false -c.nsis.include=installer.nsh
+          '-c.nsis.oneClick=false' '-c.nsis.perMachine=false' '-c.nsis.include=installer.nsh'
           '-c.nsis.artifactName=${productName}-AutoType-Setup-${version}.${ext}'
           '-c.portable.artifactName=${productName}-AutoType-Portable-${version}.${ext}'
 

@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use windows::Win32::{
     Foundation::HWND,
     Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED},
@@ -35,7 +35,10 @@ use super::{Action, KeyEvent, Modifiers};
 /// KeePass waits this long after switching windows before it types (`TargetActivationDelay`).
 const TARGET_ACTIVATION_DELAY: Duration = Duration::from_millis(100);
 const FOREGROUND_TIMEOUT: Duration = Duration::from_secs(1);
-const MODIFIER_RELEASE_TIMEOUT: Duration = Duration::from_secs(1);
+/// How long to wait for the user to let go of the in-app shortcut (Ctrl+Shift+V) before typing.
+const KEY_RELEASE_TIMEOUT: Duration = Duration::from_secs(5);
+/// Pause after the keys were released (or force-released) before the first key is sent.
+const SETTLE_DELAY: Duration = Duration::from_millis(50);
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Windows that are never a typing target: the taskbars and the desktop.
@@ -154,10 +157,27 @@ pub(super) fn char_to_key(ch: char) -> Option<(u16, Modifiers)> {
 }
 
 pub(super) fn send(actions: &[Action]) -> Result<()> {
-    release_modifiers();
+    wait_for_key_release();
+
+    // Modifiers this sequence pressed and hasn't released yet (e.g. inside `^{END}`).
+    let mut pressed_by_us = 0usize;
     for action in actions {
         match action {
             Action::Stroke(events) => {
+                if pressed_by_us == 0 {
+                    release_stray_modifiers();
+                }
+                for event in events {
+                    if let KeyEvent::Virtual { vk, down } = *event {
+                        if is_modifier(vk) {
+                            if down {
+                                pressed_by_us += 1;
+                            } else {
+                                pressed_by_us = pressed_by_us.saturating_sub(1);
+                            }
+                        }
+                    }
+                }
                 let inputs: Vec<INPUT> = events.iter().map(to_input).collect();
                 send_inputs(&inputs)?;
             }
@@ -167,16 +187,43 @@ pub(super) fn send(actions: &[Action]) -> Result<()> {
     Ok(())
 }
 
-/// Waits for the user to let go of the shortcut's modifier keys, then releases any still down;
-/// otherwise the typed text would arrive as Ctrl+Shift+<char>.
-fn release_modifiers() {
-    let is_down = |vk: u16| unsafe { GetAsyncKeyState(i32::from(vk)) } < 0;
+fn is_down(vk: u16) -> bool {
+    // SAFETY: plain query of the asynchronous key state.
+    unsafe { GetAsyncKeyState(i32::from(vk)) < 0 }
+}
 
-    let deadline = Instant::now() + MODIFIER_RELEASE_TIMEOUT;
-    while MODIFIER_VKS.iter().any(|&vk| is_down(vk)) && Instant::now() < deadline {
+fn is_modifier(vk: u16) -> bool {
+    matches!(vk, 0x10..=0x12 | 0x5B | 0x5C | 0xA0..=0xA5)
+}
+
+/// Waits until the user has let go of every key (the shortcut's Ctrl, Shift and V), otherwise the
+/// first keys would arrive as Ctrl+Shift+<key> (a Tab becomes Shift+Tab or Ctrl+Tab). Modifiers
+/// still down after the timeout are released.
+fn wait_for_key_release() {
+    // Keyboard keys only; 0x01-0x07 are mouse buttons.
+    let any_key_down = || (0x08u16..=0xFE).any(is_down);
+
+    let start = Instant::now();
+    let mut waited = false;
+    while any_key_down() && start.elapsed() < KEY_RELEASE_TIMEOUT {
+        waited = true;
         sleep(POLL_INTERVAL);
     }
+    if waited {
+        info!(
+            waited_ms = start.elapsed().as_millis() as u64,
+            "Auto-type waited for keys to be released."
+        );
+    }
+    let released = release_stray_modifiers();
+    if waited || released > 0 {
+        sleep(SETTLE_DELAY);
+    }
+}
 
+/// Releases modifier keys that are down although this sequence didn't press them (still held
+/// from the shortcut, or pressed by the user while typing), like KeePass does before sending.
+fn release_stray_modifiers() -> usize {
     let held: Vec<INPUT> = MODIFIER_VKS
         .iter()
         .filter(|&&vk| is_down(vk))
@@ -185,13 +232,14 @@ fn release_modifiers() {
     if !held.is_empty() {
         warn!(
             count = held.len(),
-            "Releasing modifier keys still held before auto-type."
+            "Auto-type released modifier keys that were still held."
         );
         if let Err(e) = send_inputs(&held) {
             warn!(error = %e, "Could not release modifier keys.");
         }
         sleep(POLL_INTERVAL);
     }
+    held.len()
 }
 
 fn is_extended(vk: u16) -> bool {

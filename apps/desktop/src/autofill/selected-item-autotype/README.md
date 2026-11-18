@@ -10,8 +10,13 @@ the fork `red-one1/bitwarden-clients` (branch `keepass-autotype`), not in upstre
 3. Press **Ctrl+Shift+V** (or Edit > "Auto-type into previous window").
 
 Bitwarden gives the focus back to the window below it (like KeePass), waits until you have let go
-of Ctrl and Shift, and types the item's sequence. It does not check where the focus is, so make
-sure the right field is focused.
+of all keys (up to 5 s, then it releases Ctrl/Shift/Alt/Win itself), and types the item's sequence.
+It does not check where the focus is, so make sure the right field is focused.
+
+Timing follows KeePass 2.x: 35 ms before every key event (modifier presses are separate events)
+and once more after a Tab, so typing 30 characters takes about a second. Before each key it
+releases modifier keys it didn't press, so a still-held Shift can't turn a Tab into Shift+Tab. Use
+`{DELAY=n}` in a sequence for slow targets.
 
 If the item asks for the master password again ("Master password re-prompt"), Bitwarden asks
 first.
@@ -31,7 +36,7 @@ case-insensitive:
 | Repeat      | `{TAB 3}`, `{+ 2}`                                                                                                                                                                                                                                                                                                                                                               |
 | Modifiers   | `+` Shift, `^` Ctrl, `%` Alt, for the next key, character or `( )` group: `^a`, `%{F4}`, `+(abc)`                                                                                                                                                                                                                                                                                |
 | Literal     | `{+}` `{^}` `{%}` `{~}` `{(}` `{)}` `{[}` `{]}` `{{}` `{}}`                                                                                                                                                                                                                                                                                                                      |
-| Commands    | `{DELAY n}` (pause n ms), `{DELAY=n}` (n ms between keys from here, default 10), `{CLEARFIELD}`, `{VKEY n}` (virtual key, decimal or `0x..`)                                                                                                                                                                                                                                     |
+| Commands    | `{DELAY n}` (pause n ms), `{DELAY=n}` (n ms before each key from here, default 35), `{CLEARFIELD}`, `{VKEY n}` (virtual key, decimal or `0x..`)                                                                                                                                                                                                                                  |
 
 Item values are typed literally (a password containing `{TAB}` or `+` is typed as is). Text is sent
 as Unicode key packets, so Caps Lock and the keyboard layout don't change it.
